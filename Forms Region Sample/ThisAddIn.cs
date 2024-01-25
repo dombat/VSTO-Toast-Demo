@@ -14,6 +14,11 @@ using System.Windows.Forms;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+///Some things that you might want to look at:
+///If the delay is too long, Outlook will generally disable the plugin. Might need a policy to allow all the time.
+///Add error handling, so that if the plugin is disabled, it doesn't crash Outlook.
+///It appears in the middle of the screen, but you might want to move it to the bottom right corner.
+
 namespace Forms_Region_Sample
 {
     public partial class ThisAddIn
