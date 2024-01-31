@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -24,10 +25,11 @@ namespace Forms_Region_Sample
     public partial class ThisAddIn
     {
         BackgroundWorker worker;
+        ToastForm toastForm;
 
         const string LabelMessage = "Warning: Your Outlook Needs to be Restarted";
-        const int durationMs = 5000;
-        
+        const int durationMs = 10000;
+
         private void ThisAddIn_Startup(object sender, System.EventArgs e)
         {
             worker = new BackgroundWorker()
@@ -35,7 +37,7 @@ namespace Forms_Region_Sample
                 WorkerSupportsCancellation = true
             };
 
-           
+
             worker.DoWork += (obj, ex) => // This is where your time-consuming operation goes.
             {
                 ShowToast(LabelMessage, durationMs);
@@ -52,14 +54,45 @@ namespace Forms_Region_Sample
 
         public void ShowToast(string message, int duration)
         {
-            Form toastForm = new Form
+            InitialiseForm();
+
+            AddLabelToForm(message);
+
+            InitialiseOpacityTimer();
+
+            toastForm.StartDate = DateTime.UtcNow;
+            System.Media.SystemSounds.Exclamation.Play();
+            toastForm.ShowDialog();
+            
+        }
+
+        private void InitialiseOpacityTimer()
+        {
+            Timer FormOpacityTimer = new Timer
+            {
+                Interval = 100,
+            };
+
+            FormOpacityTimer.Tick += OpacityTimer_Tick;
+            FormOpacityTimer.Start();
+        }
+
+        private void InitialiseForm()
+        {
+            toastForm = new ToastForm
             {
                 Size = new Size(400, 100),
                 FormBorderStyle = FormBorderStyle.None,
-                StartPosition = FormStartPosition.CenterScreen,
-                ShowInTaskbar = false
+                StartPosition = FormStartPosition.Manual,
+                ShowInTaskbar = false,
+                Left = Screen.PrimaryScreen.WorkingArea.Width - 400,
+                Top = Screen.PrimaryScreen.WorkingArea.Height - 100,
+                Opacity = 0
             };
+        }
 
+        private void AddLabelToForm(string message)
+        {
             Label messageLabel = new Label
             {
                 Text = message,
@@ -69,36 +102,48 @@ namespace Forms_Region_Sample
             };
 
             toastForm.Controls.Add(messageLabel);
+        }
 
-            Timer timer = new Timer
+        private void OpacityTimer_Tick(object sender, EventArgs e)
+        {
+            //in the first second, we want to increase the opacity
+            if (DateTime.UtcNow.Subtract(toastForm.StartDate).TotalMilliseconds <= 1000)
             {
-                Interval = duration
-            };
+                toastForm.Opacity += 0.1;
+            }
 
-            timer.Tick += (s, e) =>
+            //if the toast form is 4 seconds old, we want to reduce opacity by 10% to start hiding it
+            if (DateTime.UtcNow.Subtract(toastForm.StartDate).TotalMilliseconds >= 4000)
             {
+                toastForm.Opacity -= 0.1;
+            }
+
+            //if the toast form is 5 seconds old, we want to close it and dispose of resources
+            if (DateTime.UtcNow.Subtract(toastForm.StartDate).TotalMilliseconds >= 5000)
+            {
+                ((Timer)sender).Stop();
                 toastForm.Close();
                 toastForm.Dispose();
+                ((Timer)sender).Dispose();
 
-                timer.Tick -= (x, y) => { }; // Unregister the event handler.
-                                             // The event source (the Timer in this case) holds a reference to the object that owns the event handler (the ThisAddIn class in this case).
-                                             // This can prevent the garbage collector from collecting the object, even if there are no other references to it, leading to a memory leak.
-                                             // To prevent this, you should unregister the event handler when you're done with it. 
-                timer.Dispose();
+                DisposeBackgrounWorker();
+            }
+        }
 
+        private void DisposeBackgrounWorker()
+        {
+            if (worker != null)
+            {
                 if (worker.IsBusy)
                 {
-                    worker.CancelAsync();
-                    // Wait for the worker to finish...
+                    worker.CancelAsync(); // Wait for the worker to finish...                   
                 }
 
                 worker.Dispose();
                 worker = null;
-            };
-            
-            timer.Start();
-            toastForm.ShowDialog();
+            }
         }
+
         #region VSTO generated code
 
         /// <summary>
@@ -110,7 +155,7 @@ namespace Forms_Region_Sample
             this.Startup += new System.EventHandler(ThisAddIn_Startup);
             this.Shutdown += new System.EventHandler(ThisAddIn_Shutdown);
         }
-        
+
         #endregion
     }
 }
